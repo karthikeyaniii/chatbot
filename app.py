@@ -1,125 +1,107 @@
 import streamlit as st
-from model import LoanChatbot  # Assuming the chatbot class is in model.py
+from main import LoanChatbot
+import pandas as pd
 
 # Initialize the chatbot
 chatbot = LoanChatbot()
 
-# Initialize session state variables only once
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
+# Streamlit Layout and styling
+st.set_page_config(page_title="Loan Chatbot", layout="centered")
+st.title("Loan Application Chatbot")
 
-if 'user_data' not in st.session_state:
-    st.session_state.user_data = {}
+# Show greeting message
+st.write(chatbot.generate_greeting("start"))
 
-if 'current_question' not in st.session_state:
-    st.session_state.current_question = "greeting"  # Start with the greeting
+# Initialize the session state
+if "conversation" not in st.session_state:
+    st.session_state.conversation = []
+if "user_data" not in st.session_state:
+    st.session_state.user_data = {}  # Store user responses here
+if "current_field" not in st.session_state:
+    st.session_state.current_field = None  # Track the current question being asked
+if "fields" not in st.session_state:
+    st.session_state.fields = [
+        'name', 'phone', 'email', 'loan_purpose', 'income', 'dob',
+        'occupation', 'address', 'loan_amount', 'promotion_applied',
+        'how_heard', 'marital_status', 'whatsapp_opt_in', 'employer_name',
+        'self_employed', 'additional_income', 'commitments', 'declaration',
+        'reference1_name', 'reference1_relation', 'reference1_address',
+        'reference1_contact', 'reference1_occupation', 'reference2_name',
+        'reference2_relation', 'reference2_address', 'reference2_contact',
+        'reference2_occupation'
+    ]
+if "next_question" not in st.session_state:
+    st.session_state.next_question = None
 
-if 'initialized' not in st.session_state:
-    # Initialize chatbot only once
-    chatbot = LoanChatbot()
-    st.session_state.initialized = True
+# Function to get the chatbot's next response
+def get_chatbot_response(user_input):
+    current_field = st.session_state.current_field
 
-# Display chat history
-def display_chat():
-    """ Display the chat history efficiently """
-    for message in st.session_state.chat_history:
+    # Save the response for the current field without validation for phone
+    if current_field:
+        if current_field == "phone":
+            st.session_state.user_data[current_field] = user_input  # Accept any input for phone
+        else:
+            extracted_features = chatbot.extract_features(user_input)
+            if current_field in extracted_features:
+                st.session_state.user_data[current_field] = extracted_features[current_field]
+            else:
+                # Invalid input, repeat the same question
+                return f"Invalid input for {current_field}. {chatbot.get_next_prompt(current_field)[0]}"
+
+    # Check for the next field to fill
+    for field in st.session_state.fields:
+        if field not in st.session_state.user_data:
+            st.session_state.current_field = field
+            prompt, validation_type = chatbot.get_next_prompt(field)
+            return prompt
+
+    # If all fields are collected
+    st.session_state.current_field = None
+    return "All required details are collected! Your application is complete."
+
+# Display the conversation
+if st.session_state.conversation:
+    for message in st.session_state.conversation:
         st.write(message)
 
-# Function to handle user response and chatbot's next question
-def process_response(response):
-    """ Process the user response and get the next question """
-    chatbot.user_data.update(st.session_state.user_data)  # Update chatbot's user_data
-    next_question = None
+# User Input Section
+placeholder = st.empty()  # Create a placeholder for the input widget
 
-    # Handle greeting and initial information extraction
-    if st.session_state.current_question == "greeting":
-        chatbot.extract_initial_info(response)  # Extract user name, loan type, and amount
-        name = chatbot.user_data.get('first_name', 'Guest')
-        if 'loan_type' in chatbot.user_data and 'loan_amount' in chatbot.user_data:
-            next_question = "Do you have a promotion code? (yes/no)"
-        else:
-            next_question = "What type of loan are you interested in? (Personal/Business/Home/Car/Education)"
-    elif st.session_state.current_question == "loan_type":
-        chatbot.user_data['loan_type'] = response.capitalize()
-        next_question = "What loan amount are you looking for?"
-    elif st.session_state.current_question == "loan_amount":
-        chatbot.user_data['loan_amount'] = chatbot.extract_amount(response)
-        next_question = "Do you have a promotion code? (yes/no)"
-    elif st.session_state.current_question == "promo_code":
-        if response.lower() == 'yes':
-            next_question = "Please enter your promotion code:"
-        else:
-            next_question = "What is the purpose of this loan?"
-    elif st.session_state.current_question == "promotion_code_input":
-        if chatbot.validate_promo_code(response.upper()):
-            chatbot.user_data['promotion_applied'] = response.upper()
-            st.session_state.chat_history.append("Promotion code applied successfully!")
-        else:
-            st.session_state.chat_history.append("Invalid promotion code.")
-        next_question = "What is the purpose of this loan?"
-    elif st.session_state.current_question == "loan_purpose":
-        chatbot.user_data['loan_purpose'] = response
-        next_question = "Are you a member or non-member?"
-    elif st.session_state.current_question == "membership_status":
-        chatbot.user_data['membership_status'] = response.lower()
-        next_question = "Please enter your account number:"
-    elif st.session_state.current_question == "account_number":
-        chatbot.user_data['account_number'] = response
-        next_question = "What is your contact number?"
-    elif st.session_state.current_question == "telephone":
-        chatbot.user_data['telephone'] = response
-        next_question = "What is your email address?"
-    elif st.session_state.current_question == "email":
-        chatbot.user_data['email'] = response
-        next_question = "What is your date of birth? (DD/MM/YYYY)"
-    elif st.session_state.current_question == "date_of_birth":
-        chatbot.user_data['date_of_birth'] = response
-        next_question = "Now, let's collect references. Please provide the first reference's name."
-    elif "reference" in st.session_state.current_question:
-        ref_num = int(st.session_state.current_question.split('_')[1])
-        field = st.session_state.current_question.split('_')[2]
-        chatbot.user_data[f'reference{ref_num}_{field}'] = response
-        if field == 'occupation' and ref_num == 1:
-            next_question = "Please provide the second reference's name."
-        elif field == 'occupation' and ref_num == 2:
-            next_question = "Finally, upload your ID documents."
-        else:
-            fields = ['relation', 'address', 'contact', 'occupation']
-            next_field = fields[fields.index(field) + 1]
-            next_question = f"Please provide reference {ref_num}'s {next_field}:"
-    elif st.session_state.current_question == "id_documents":
-        chatbot.user_data['uploaded_ids'] = response
-        next_question = "Upload your supporting documents."
-    elif st.session_state.current_question == "supporting_documents":
-        chatbot.user_data['uploaded_documents'] = response
-        chatbot.save_application()
-        st.success(f"Thank you {chatbot.user_data.get('first_name', 'Guest')}! Your loan application has been submitted.")
-        st.info(f"We'll contact you at {chatbot.user_data.get('email', 'your provided email')} soon.")
-        next_question = None
+# Use a unique key for each text input widget
+unique_key = f"user_input_{len(st.session_state.conversation)}"
+with placeholder:
+    user_input = st.text_input("You:", key=unique_key)
 
-    st.session_state.user_data = chatbot.user_data
-    return next_question
+if user_input:
+    # Append user's response to the conversation
+    st.session_state.conversation.append(f"You: {user_input}")
 
-# Display initial greeting
-if st.session_state.current_question == "greeting":
-    greeting = chatbot.get_greeting_response("Guest")  # You can update "Guest" to the user's name if available
-    st.session_state.chat_history.append(greeting)
-    st.session_state.current_question = "loan_type"
+    # Get chatbot's next response
+    next_question = get_chatbot_response(user_input)
 
-# Display user inputs and chatbot responses
-display_chat()
+    # Append chatbot's response to the conversation
+    st.session_state.conversation.append(f"Chatbot: {next_question}")
 
-# Dynamically display the input box for the next question
-if st.session_state.current_question:
-    question_to_display = st.session_state.current_question
-    if question_to_display:
-        user_input = st.text_input(f"Chatbot: {question_to_display}", "")
-        if user_input:
-            st.session_state.chat_history.append(f"You: {user_input}")
-            next_question = process_response(user_input)
+    # Clear the input field by recreating it
+    placeholder.empty()
+    placeholder.text_input("You:", key=f"user_input_{len(st.session_state.conversation)}")
 
-            # Update session state for next question
-            if next_question:
-                st.session_state.current_question = next_question
-                st.session_state.chat_history.append(f"Chatbot: {next_question}")
-                display_chat()
+    # If the application is complete, save the data to a CSV file
+    if next_question == "All required details are collected! Your application is complete.":
+        df = pd.DataFrame([st.session_state.user_data])
+        df.to_csv("loan_applications.csv", index=False)
+        st.session_state.conversation.append("Chatbot: Your details are saved successfully.")
+        st.session_state.conversation.append("Chatbot: Download your application details below:")
+        st.download_button(
+            label="Download Loan Application CSV",
+            data=df.to_csv(index=False),
+            file_name="loan_application.csv",
+            mime="text/csv"
+        )
+
+# Automatically scroll to the latest message in the conversation
+if st.session_state.conversation:
+    st.write("---")
+    st.write("### Chat Conversation:")
+    st.write("\n".join(st.session_state.conversation))
