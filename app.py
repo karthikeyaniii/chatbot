@@ -1,22 +1,16 @@
 import streamlit as st
-from model import LoanChatbot  # Import LoanChatbot from model.py
+from model import LoanChatbot  # Assuming model.py contains your LoanChatbot class
 
-# Initialize the chatbot
+# Initialize chatbot
 chatbot = LoanChatbot()
 
-# Title and Intro
-st.title("Loan Application Chatbot")
-st.write("Welcome! Let's get started with your loan application.")
-
-# Chat history
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+# Initialize session state if not already
 if "current_question" not in st.session_state:
-    st.session_state.current_question = None
-if "user_data" not in st.session_state:
+    st.session_state.current_question = "greeting"
+    st.session_state.chat_history = []
     st.session_state.user_data = {}
 
-# Function to handle user responses and progress the chat
+# Function to process the user input and update chatbot state
 def process_response(response):
     chatbot.user_data.update(st.session_state.user_data)  # Update chatbot's user_data
     next_question = None
@@ -24,7 +18,7 @@ def process_response(response):
     if st.session_state.current_question == "greeting":
         chatbot.extract_initial_info(response)
         name = chatbot.user_data.get('first_name', 'Guest')
-        next_question = chatbot.get_greeting_response(name)
+        next_question = f"What type of loan are you interested in? (Personal/Business/Home/Car/Education)"
     elif st.session_state.current_question == "loan_type":
         chatbot.user_data['loan_type'] = response.capitalize()
         next_question = "What loan amount are you looking for?"
@@ -86,17 +80,21 @@ def process_response(response):
     st.session_state.user_data = chatbot.user_data
     return next_question
 
-# Chat Interface
-if st.session_state.current_question is None:
-    st.session_state.current_question = "greeting"
-    st.session_state.chat_history.append("Welcome! How can I assist you with your loan application today?")
+# Streamlit layout
+st.title("Loan Application Chatbot")
 
+# Show chat history
 for chat in st.session_state.chat_history:
     st.write(chat)
 
+# Handle user input
+if st.session_state.current_question == "greeting":
+    st.session_state.chat_history.append("Welcome! How can I assist you with your loan application today?")
+    st.session_state.current_question = "loan_type"
+    
 if st.session_state.current_question:
     user_input = st.text_input("You:", key="user_input")
-    if st.button("Send"):
+    if user_input:
         st.session_state.chat_history.append(f"You: {user_input}")
         next_q = process_response(user_input)
         if next_q:
@@ -105,3 +103,18 @@ if st.session_state.current_question:
         else:
             st.session_state.current_question = None
 
+# Handle additional logic for upload
+if st.session_state.current_question == "id_documents":
+    uploaded_file = st.file_uploader("Upload your ID documents", type=["png", "jpg", "jpeg", "pdf"])
+    if uploaded_file:
+        st.session_state.chat_history.append(f"You've uploaded your ID documents.")
+        process_response("uploaded")  # Proceed to next step after upload
+
+if st.session_state.current_question == "supporting_documents":
+    uploaded_file = st.file_uploader("Upload supporting documents", type=["png", "jpg", "jpeg", "pdf"])
+    if uploaded_file:
+        st.session_state.chat_history.append(f"You've uploaded your supporting documents.")
+        process_response("uploaded")  # Proceed to next step after upload
+
+# To start the application, just run the streamlit app:
+# streamlit run app.py
