@@ -1,5 +1,5 @@
 import streamlit as st
-from main import LoanChatbot
+from model import LoanChatbot
 import pandas as pd
 
 # Initialize the chatbot
