@@ -1,0 +1,5 @@
+streamlit
+transformers
+tokenizers==0.14.1
+pandas
+torch
