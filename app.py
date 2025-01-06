@@ -4,7 +4,7 @@ from model import LoanChatbot  # Assuming the chatbot class is in model.py
 # Initialize the chatbot
 chatbot = LoanChatbot()
 
-# Initialize session state
+# Initialize session state variables only once
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
@@ -14,13 +14,20 @@ if 'user_data' not in st.session_state:
 if 'current_question' not in st.session_state:
     st.session_state.current_question = "greeting"  # Start with the greeting
 
+if 'initialized' not in st.session_state:
+    # Initialize chatbot only once
+    chatbot = LoanChatbot()
+    st.session_state.initialized = True
+
 # Display chat history
 def display_chat():
+    """ Display the chat history efficiently """
     for message in st.session_state.chat_history:
         st.write(message)
 
 # Function to handle user response and chatbot's next question
 def process_response(response):
+    """ Process the user response and get the next question """
     chatbot.user_data.update(st.session_state.user_data)  # Update chatbot's user_data
     next_question = None
 
@@ -102,14 +109,17 @@ if st.session_state.current_question == "greeting":
 # Display user inputs and chatbot responses
 display_chat()
 
-# Get user input
-user_input = st.text_input("You:", "")
-if user_input:
-    st.session_state.chat_history.append(f"You: {user_input}")
-    next_question = process_response(user_input)
+# Dynamically display the input box for the next question
+if st.session_state.current_question:
+    question_to_display = st.session_state.current_question
+    if question_to_display:
+        user_input = st.text_input(f"Chatbot: {question_to_display}", "")
+        if user_input:
+            st.session_state.chat_history.append(f"You: {user_input}")
+            next_question = process_response(user_input)
 
-    # Update session state for next question
-    if next_question:
-        st.session_state.current_question = next_question
-        st.session_state.chat_history.append(f"Chatbot: {next_question}")
-        display_chat()
+            # Update session state for next question
+            if next_question:
+                st.session_state.current_question = next_question
+                st.session_state.chat_history.append(f"Chatbot: {next_question}")
+                display_chat()
